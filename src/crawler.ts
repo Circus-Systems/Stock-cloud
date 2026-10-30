@@ -40,12 +40,15 @@ export interface SourceStatus {
   lastRun: Record<string, string>;
   lastError?: string;
   lastBatch?: { at: string; jobs: number; ms: number } | null;
+  recentJobs?: { at: string; kind: string; ticker: string; id?: string; ms: number; bytes?: number; error?: string }[];
 }
 
 export class Crawler extends DurableObject<Env> {
   private sql: SqlStorage;
   /** Earliest time the next upstream request may start (slot-based throttle, safe under concurrency). */
   private nextSlotAt = 0;
+  /** Last few processed jobs with timings (in-memory, for /status diagnostics). */
+  private recent: { at: string; kind: string; ticker: string; id?: string; ms: number; bytes?: number; error?: string }[] = [];
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -152,6 +155,7 @@ export class Crawler extends DurableObject<Env> {
       lastRun,
       lastError: this.kvGet('lastError'),
       lastBatch: JSON.parse(this.kvGet('lastBatch') ?? 'null'),
+      recentJobs: [...this.recent].reverse(),
     };
   }
 
@@ -251,13 +255,22 @@ export class Crawler extends DurableObject<Env> {
     }
   }
 
+  private note(entry: (typeof this.recent)[number]): void {
+    this.recent.push(entry);
+    if (this.recent.length > 40) this.recent.shift();
+  }
+
   private async processRow(row: JobRow): Promise<void> {
     const job = JSON.parse(row.payload) as Job;
+    const t0 = Date.now();
+    const id = job.kind === 'download' ? job.ref.id : job.kind === 'list' ? job.cursor ?? 'start' : undefined;
     try {
-      await this.runJob(job);
+      const bytes = await this.runJob(job);
       this.sql.exec('DELETE FROM jobs WHERE id = ?', row.id);
+      this.note({ at: new Date().toISOString(), kind: job.kind, ticker: row.ticker, id, ms: Date.now() - t0, bytes });
     } catch (e) {
       const msg = e instanceof Error ? `${e.message}` : String(e);
+      this.note({ at: new Date().toISOString(), kind: job.kind, ticker: row.ticker, id, ms: Date.now() - t0, error: msg.slice(0, 200) });
       console.error(`[${this.sourceId}] job ${row.id} ${job.kind} ${row.ticker} failed (attempt ${row.attempts + 1}): ${msg}`);
       this.kvSet('lastError', `${new Date().toISOString()} ${job.kind} ${row.ticker}: ${msg}`.slice(0, 500));
       if (row.attempts + 1 >= MAX_ATTEMPTS) {
@@ -278,14 +291,17 @@ export class Crawler extends DurableObject<Env> {
     }
   }
 
-  private async runJob(job: Job): Promise<void> {
+  /** Returns the number of bytes written for download jobs. */
+  private async runJob(job: Job): Promise<number | undefined> {
     switch (job.kind) {
       case 'list':
-        return this.runList(job);
+        await this.runList(job);
+        return undefined;
       case 'download':
         return this.runDownload(job.ref);
       case 'export-index':
-        return this.exportIndex(job.ticker);
+        await this.exportIndex(job.ticker);
+        return undefined;
     }
   }
 
@@ -310,11 +326,12 @@ export class Crawler extends DurableObject<Env> {
     }
   }
 
-  private async runDownload(ref: FilingRef): Promise<void> {
+  private async runDownload(ref: FilingRef): Promise<number> {
     const source = SOURCES[this.sourceId];
     const objects: StoredObject[] = await source.download(ref, this.makeContext());
     if (!objects.length) throw new Error(`download of ${ref.ticker}/${ref.id} produced no objects`);
     const keys: string[] = [];
+    let totalBytes = 0;
     for (const obj of objects) {
       const options: R2PutOptions = {
         httpMetadata: { contentType: obj.contentType },
@@ -335,6 +352,7 @@ export class Crawler extends DurableObject<Env> {
         if (size > MAX_OBJECT_BYTES) throw new Error(`${obj.key} is ${size} bytes, over the limit`);
         await this.env.FILINGS.put(obj.key, obj.body, options);
       }
+      totalBytes += size;
       const meta = { ...ref, ...obj.meta, key: obj.key, contentType: obj.contentType, bytes: size, archivedAt: new Date().toISOString() };
       await this.env.FILINGS.put(`${obj.key}.meta.json`, JSON.stringify(meta, null, 2), { httpMetadata: { contentType: 'application/json' } });
       keys.push(obj.key);
@@ -350,6 +368,7 @@ export class Crawler extends DurableObject<Env> {
       JSON.stringify(keys),
       Date.now(),
     );
+    return totalBytes;
   }
 
   /**
