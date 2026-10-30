@@ -405,6 +405,7 @@ async function getHtml(url: string, ctx: SourceContext): Promise<string | undefi
 export const adyenSource: Source = {
   id: 'adyen',
   minDelayMs: 500,
+  concurrency: 2,
 
   async list(holding: Holding, _mode: ListMode, cursor: string | undefined, ctx: SourceContext): Promise<ListPage> {
     // Everything is enumerated in one pass; there is no paging.

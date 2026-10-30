@@ -84,8 +84,10 @@ export interface StoredObject {
 
 export interface Source {
   id: SourceId;
-  /** Minimum delay between two upstream requests, in milliseconds. */
+  /** Minimum spacing between two upstream requests, in milliseconds (enforced across concurrent jobs). */
   minDelayMs: number;
+  /** How many jobs of this source may be in flight at once (default 1). Requests stay spaced by minDelayMs. */
+  concurrency?: number;
   /**
    * Enumerate filings. `cursor` is undefined for the first call. Return
    * `nextCursor` to be called again. In "recent" mode the source should only

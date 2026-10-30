@@ -100,6 +100,7 @@ async function fetchJson(url: string, ctx: SourceContext): Promise<unknown> {
 export const secSource: Source = {
   id: 'sec',
   minDelayMs: 150,
+  concurrency: 4,
 
   async list(holding: Holding, mode: ListMode, cursor: string | undefined, ctx: SourceContext): Promise<ListPage> {
     if (!holding.cik) throw new Error(`holding ${holding.ticker} has no cik`);

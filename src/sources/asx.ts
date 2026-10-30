@@ -378,7 +378,8 @@ async function listRecentMarkit(holding: Holding, ctx: SourceContext): Promise<F
 
 export const asxSource: Source = {
   id: 'asx',
-  minDelayMs: 600,
+  minDelayMs: 400,
+  concurrency: 3,
 
   async list(holding: Holding, mode: ListMode, cursor: string | undefined, ctx: SourceContext): Promise<ListPage> {
     const now = ctx.now();

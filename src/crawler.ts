@@ -12,7 +12,7 @@ import type { Env, FilingRef, Holding, Job, ListMode, SourceContext, SourceId, S
 import { SOURCES } from './sources';
 import { sleep } from './util';
 
-const BATCH_JOBS = 25; // jobs per alarm invocation
+const BATCH_JOBS = 60; // jobs per alarm invocation
 const BATCH_WALL_MS = 45_000; // stop picking new jobs after this much wall time
 const MAX_ATTEMPTS = 6;
 const MAX_OBJECT_BYTES = 200 * 1024 * 1024;
@@ -44,7 +44,8 @@ export interface SourceStatus {
 
 export class Crawler extends DurableObject<Env> {
   private sql: SqlStorage;
-  private lastRequestAt = 0;
+  /** Earliest time the next upstream request may start (slot-based throttle, safe under concurrency). */
+  private nextSlotAt = 0;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -195,9 +196,10 @@ export class Crawler extends DurableObject<Env> {
   private makeContext(): SourceContext {
     const source = SOURCES[this.sourceId];
     const throttledFetch = async (url: string, init?: RequestInit): Promise<Response> => {
-      const wait = this.lastRequestAt + source.minDelayMs - Date.now();
+      const slot = Math.max(this.nextSlotAt, Date.now());
+      this.nextSlotAt = slot + source.minDelayMs;
+      const wait = slot - Date.now();
       if (wait > 0) await sleep(wait);
-      this.lastRequestAt = Date.now();
       let lastErr: unknown;
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
@@ -225,36 +227,19 @@ export class Crawler extends DurableObject<Env> {
 
   async alarm(): Promise<void> {
     const started = Date.now();
+    const source = SOURCES[this.sourceId];
+    const concurrency = Math.max(1, source.concurrency ?? 1);
+    const rows = this.sql.exec<JobRow>('SELECT * FROM jobs WHERE not_before <= ? ORDER BY id LIMIT ?', Date.now(), BATCH_JOBS).toArray();
+    let next = 0;
     let processed = 0;
-    while (processed < BATCH_JOBS && Date.now() - started < BATCH_WALL_MS) {
-      const row = this.sql.exec<JobRow>('SELECT * FROM jobs WHERE not_before <= ? ORDER BY id LIMIT 1', Date.now()).toArray()[0];
-      if (!row) break;
-      const job = JSON.parse(row.payload) as Job;
-      try {
-        await this.runJob(job);
-        this.sql.exec('DELETE FROM jobs WHERE id = ?', row.id);
-      } catch (e) {
-        const msg = e instanceof Error ? `${e.message}` : String(e);
-        console.error(`[${this.sourceId}] job ${row.id} ${job.kind} ${row.ticker} failed (attempt ${row.attempts + 1}): ${msg}`);
-        this.kvSet('lastError', `${new Date().toISOString()} ${job.kind} ${row.ticker}: ${msg}`.slice(0, 500));
-        if (row.attempts + 1 >= MAX_ATTEMPTS) {
-          this.sql.exec(
-            'INSERT INTO failed (kind, ticker, payload, error, attempts, failed_at) VALUES (?, ?, ?, ?, ?, ?)',
-            job.kind,
-            row.ticker,
-            row.payload,
-            msg.slice(0, 2000),
-            row.attempts + 1,
-            Date.now(),
-          );
-          this.sql.exec('DELETE FROM jobs WHERE id = ?', row.id);
-        } else {
-          const backoff = Math.min(60 * 60_000, 30_000 * 2 ** row.attempts);
-          this.sql.exec('UPDATE jobs SET attempts = attempts + 1, not_before = ? WHERE id = ?', Date.now() + backoff, row.id);
-        }
+    const worker = async () => {
+      while (next < rows.length && Date.now() - started < BATCH_WALL_MS) {
+        const row = rows[next++];
+        await this.processRow(row);
+        processed++;
       }
-      processed++;
-    }
+    };
+    await Promise.all(Array.from({ length: Math.min(concurrency, rows.length) }, worker));
     this.kvSet('lastBatch', JSON.stringify({ at: new Date().toISOString(), jobs: processed, ms: Date.now() - started }));
     // Schedule the next batch: immediately if work is ready, else at the earliest retry time.
     const ready = this.sql.exec<{ n: number }>('SELECT COUNT(*) AS n FROM jobs WHERE not_before <= ?', Date.now()).one().n;
@@ -263,6 +248,33 @@ export class Crawler extends DurableObject<Env> {
     } else {
       const next = this.sql.exec<{ t: number | null }>('SELECT MIN(not_before) AS t FROM jobs').one().t;
       if (next !== null) await this.ctx.storage.setAlarm(Math.max(next, Date.now() + 1_000));
+    }
+  }
+
+  private async processRow(row: JobRow): Promise<void> {
+    const job = JSON.parse(row.payload) as Job;
+    try {
+      await this.runJob(job);
+      this.sql.exec('DELETE FROM jobs WHERE id = ?', row.id);
+    } catch (e) {
+      const msg = e instanceof Error ? `${e.message}` : String(e);
+      console.error(`[${this.sourceId}] job ${row.id} ${job.kind} ${row.ticker} failed (attempt ${row.attempts + 1}): ${msg}`);
+      this.kvSet('lastError', `${new Date().toISOString()} ${job.kind} ${row.ticker}: ${msg}`.slice(0, 500));
+      if (row.attempts + 1 >= MAX_ATTEMPTS) {
+        this.sql.exec(
+          'INSERT INTO failed (kind, ticker, payload, error, attempts, failed_at) VALUES (?, ?, ?, ?, ?, ?)',
+          job.kind,
+          row.ticker,
+          row.payload,
+          msg.slice(0, 2000),
+          row.attempts + 1,
+          Date.now(),
+        );
+        this.sql.exec('DELETE FROM jobs WHERE id = ?', row.id);
+      } else {
+        const backoff = Math.min(60 * 60_000, 30_000 * 2 ** row.attempts);
+        this.sql.exec('UPDATE jobs SET attempts = attempts + 1, not_before = ? WHERE id = ?', Date.now() + backoff, row.id);
+      }
     }
   }
 

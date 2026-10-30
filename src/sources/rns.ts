@@ -305,6 +305,7 @@ async function download(ref: FilingRef, ctx: SourceContext): Promise<StoredObjec
 export const rnsSource: Source = {
   id: 'rns',
   minDelayMs: 500,
+  concurrency: 2,
   list,
   download,
 };
