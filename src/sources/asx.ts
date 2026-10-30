@@ -380,6 +380,7 @@ export const asxSource: Source = {
   id: 'asx',
   minDelayMs: 300,
   concurrency: 5,
+  shards: 6,
 
   async list(holding: Holding, mode: ListMode, cursor: string | undefined, ctx: SourceContext): Promise<ListPage> {
     const now = ctx.now();

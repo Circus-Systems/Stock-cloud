@@ -12,6 +12,26 @@ share portfolio into an R2 bucket and then checks for new filings **every day**.
 
 | all holdings | Yahoo Finance chart endpoint (unofficial) | full daily OHLC, adjusted close, volume, dividends and splits, rewritten every day as `prices/{TICKER}.csv` (+ `.json` with currency/exchange/bar count) |
 
+## Universe
+
+Besides the portfolio, the worker archives the whole investable Australian universe:
+the **S&P/ASX 300** plus **every listed ETP, LIC/LIT, A‑REIT and infrastructure fund**.
+The list is rebuilt at the start of every daily run (`src/universe.ts`) from:
+
+1. Vanguard's VAS (ASX 300 index ETF) holdings API → the ~300 constituents;
+2. the ASX *investment products monthly report* spreadsheet (parsed in the Worker by
+   `src/xlsx.ts`) → ETP, LIC, A‑REIT and infrastructure lists;
+3. the ASX company directory CSV → names, plus anything with GICS "Not Applic" or a REIT group.
+
+The result (~880 codes, tagged `asx300` / `etp` / `lic` / `areit` / `infra` / `fund`) is stored at
+`_universe/universe.json` (with a dated copy under `_universe/history/`) and merged with
+`holdings.json`; portfolio entries win. Codes that appear for the first time are backfilled
+automatically (`auto` sync mode = full history for a code the crawler has never completed,
+recent otherwise). If a source is down the previous universe is kept.
+
+The ASX crawler runs as 6 Durable Object shards (`asx`, `asx#1` … `asx#5`); portfolio
+holdings stay on shard 0, universe codes are hashed across shards. `/status` aggregates them.
+
 The portfolio is `holdings.json` (57 holdings: the two CommSec accounts plus the
 international account). Dual‑listed names (BHP, RIO, XYZ/Block) are archived from
 both ASX and SEC. ASX hybrids/notes/bonds that the archive publishes under the parent
@@ -69,7 +89,9 @@ GET  /holdings                 the configured portfolio
 GET  /index/:source/:TICKER    archived filings for one holding
 GET  /failed/:source           jobs that gave up
 POST /backfill                 full‑history sync of every holding (run once)
-POST /sync?ticker=BHP&source=asx&mode=full|recent   (both filters optional)
+POST /sync?ticker=BHP&source=asx&mode=full|recent|auto   (filters optional; default auto)
+POST /universe/refresh         rebuild the ASX universe now
+GET  /universe                 the stored universe document
 POST /retry/:source            re‑queue failed jobs
 POST /forget/:source/:TICKER[?id=…]   forget archived filings so they are fetched again
 POST /kick                     re‑arm the alarms (after a deploy)

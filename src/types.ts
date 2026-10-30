@@ -27,6 +27,10 @@ export interface Holding {
   brighterir?: string;
   /** Yahoo Finance symbol override for source "prices" (default: ticker + exchange suffix, e.g. BHP.AX, RMV.L, ADYEN.AS). */
   yahoo?: string;
+  /** Universe tags for holdings discovered automatically (asx300, etp, lic, areit, infra, fund). Absent for portfolio holdings. */
+  universe?: string[];
+  /** Crawler shard for sources that run several Durable Objects (default 0). Portfolio holdings stay on shard 0. */
+  shard?: number;
 }
 
 export interface HoldingsConfig {
@@ -66,6 +70,8 @@ export interface FilingRef {
 }
 
 export type ListMode = 'full' | 'recent';
+/** 'auto' = full for a holding this crawler has never completed a listing for, otherwise recent. */
+export type SyncMode = ListMode | 'auto';
 
 export interface ListPage {
   refs: FilingRef[];
@@ -90,6 +96,8 @@ export interface Source {
   minDelayMs: number;
   /** How many jobs of this source may be in flight at once (default 1). Requests stay spaced by minDelayMs. */
   concurrency?: number;
+  /** Number of Durable Object shards for this source (default 1). Each shard has its own queue, throttle and concurrency. */
+  shards?: number;
   /**
    * Enumerate filings. `cursor` is undefined for the first call. Return
    * `nextCursor` to be called again. In "recent" mode the source should only

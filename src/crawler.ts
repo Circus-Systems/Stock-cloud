@@ -8,7 +8,7 @@
  * are serialised through a single throttled fetcher (per-source rate limit).
  */
 import { DurableObject } from 'cloudflare:workers';
-import type { Env, FilingRef, Holding, Job, ListMode, SourceContext, SourceId, StoredObject } from './types';
+import type { Env, FilingRef, Holding, Job, ListMode, SourceContext, SourceId, StoredObject, SyncMode } from './types';
 import { SOURCES } from './sources';
 import { sleep } from './util';
 
@@ -30,6 +30,7 @@ interface JobRow extends Record<string, SqlStorageValue> {
 
 export interface SourceStatus {
   source: string;
+  shard: string;
   pendingJobs: number;
   pendingByKind: Record<string, number>;
   pendingByTicker: Record<string, number>;
@@ -89,9 +90,10 @@ export class Crawler extends DurableObject<Env> {
     `);
   }
 
+  /** DO names are "<source>" (shard 0) or "<source>#<n>" for additional shards. */
   private get sourceId(): SourceId {
-    const name = this.ctx.id.name;
-    if (!name || !(name in SOURCES)) throw new Error(`Crawler DO must be addressed by source name, got ${name}`);
+    const name = (this.ctx.id.name ?? '').split('#')[0];
+    if (!name || !(name in SOURCES)) throw new Error(`Crawler DO must be addressed by source name, got ${this.ctx.id.name}`);
     return name as SourceId;
   }
 
@@ -125,13 +127,32 @@ export class Crawler extends DurableObject<Env> {
   // ---------- RPC methods (called from the Worker) ----------
 
   /** Queue a listing run for a holding. Returns true when a new list job was queued. */
-  async enqueueSync(holding: Holding, mode: ListMode): Promise<boolean> {
-    if (!holding.sources.includes(this.sourceId)) throw new Error(`${holding.ticker} is not configured for source ${this.sourceId}`);
-    const dedupe = `list:${holding.ticker}:${mode}:start`;
-    const queued = this.enqueue({ kind: 'list', ticker: holding.ticker, mode, holding } as Job, dedupe, holding.ticker);
-    this.kvSet(`holding:${holding.ticker}`, JSON.stringify(holding));
-    await this.ensureAlarm();
-    return queued;
+  async enqueueSync(holding: Holding, mode: SyncMode): Promise<boolean> {
+    const r = await this.enqueueSyncMany([holding], mode);
+    return r.queued.length > 0;
+  }
+
+  /**
+   * Queue listing runs for many holdings in one call (one RPC per shard per day).
+   * 'auto' resolves to 'full' for a holding whose listing has never completed on this shard, else 'recent'.
+   */
+  async enqueueSyncMany(holdings: Holding[], mode: SyncMode): Promise<{ queued: string[]; skipped: string[]; full: number; recent: number }> {
+    const queued: string[] = [];
+    const skipped: string[] = [];
+    let full = 0;
+    let recent = 0;
+    for (const holding of holdings) {
+      if (!holding.sources.includes(this.sourceId)) throw new Error(`${holding.ticker} is not configured for source ${this.sourceId}`);
+      const resolved: ListMode = mode === 'auto' ? (this.kvGet(`lastrun:${holding.ticker}`) ? 'recent' : 'full') : mode;
+      if (resolved === 'full') full++;
+      else recent++;
+      const dedupe = `list:${holding.ticker}:${resolved}:start`;
+      const ok = this.enqueue({ kind: 'list', ticker: holding.ticker, mode: resolved, holding } as Job, dedupe, holding.ticker);
+      (ok ? queued : skipped).push(`${holding.ticker}:${resolved}`);
+      this.kvSet(`holding:${holding.ticker}`, JSON.stringify(holding));
+    }
+    if (queued.length) await this.ensureAlarm();
+    return { queued, skipped, full, recent };
   }
 
   async status(): Promise<SourceStatus> {
@@ -145,6 +166,7 @@ export class Crawler extends DurableObject<Env> {
     for (const r of this.sql.exec<{ k: string; v: string }>("SELECT k, v FROM kv WHERE k LIKE 'lastrun:%'")) lastRun[r.k.slice(8)] = r.v;
     return {
       source: this.sourceId,
+      shard: this.ctx.id.name ?? this.sourceId,
       pendingJobs: Object.values(byKind).reduce((a, b) => a + b, 0),
       pendingByKind: byKind,
       pendingByTicker: byTicker,
