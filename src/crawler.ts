@@ -39,6 +39,7 @@ export interface SourceStatus {
   alarmAt: number | null;
   lastRun: Record<string, string>;
   lastError?: string;
+  lastBatch?: { at: string; jobs: number; ms: number } | null;
 }
 
 export class Crawler extends DurableObject<Env> {
@@ -149,6 +150,7 @@ export class Crawler extends DurableObject<Env> {
       alarmAt: await this.ctx.storage.getAlarm(),
       lastRun,
       lastError: this.kvGet('lastError'),
+      lastBatch: JSON.parse(this.kvGet('lastBatch') ?? 'null'),
     };
   }
 
@@ -253,6 +255,7 @@ export class Crawler extends DurableObject<Env> {
       }
       processed++;
     }
+    this.kvSet('lastBatch', JSON.stringify({ at: new Date().toISOString(), jobs: processed, ms: Date.now() - started }));
     // Schedule the next batch: immediately if work is ready, else at the earliest retry time.
     const ready = this.sql.exec<{ n: number }>('SELECT COUNT(*) AS n FROM jobs WHERE not_before <= ?', Date.now()).one().n;
     if (ready > 0) {
