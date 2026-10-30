@@ -4,10 +4,12 @@
  * Adyen has no filings API. Its regulatory publications (shareholder letters,
  * interim and annual financial statements, Pillar 3 reports, iXBRL packs, AGM
  * documents, business updates) are linked from the investors.adyen.com hub
- * pages `/financials` and `/general-meetings`, and from sub-pages those hubs
- * link to (`/financials/...`, `/general-meetings/...`, `/events/...`). `list`
- * crawls the hubs plus one level of sub-pages and returns every document link;
- * `download` fetches one document.
+ * pages `/financials`, `/general-meetings`, `/events` and `/governance`, and from
+ * sub-pages those hubs link to (`/financials/...`, `/general-meetings/...`,
+ * `/events/...`). `list` crawls the hubs plus one level of sub-pages and returns
+ * every document link. Press releases on www.adyen.com/press-and-media are listed
+ * from the page's Nuxt payload, one ref per release. `download` fetches one
+ * document, or for a press release the page as HTML plus the documents it links.
  *
  * Parsing is regex/string based (no DOM, no libraries). The parser functions
  * are pure and exported for tests.
@@ -16,10 +18,13 @@ import type { FilingRef, Holding, ListMode, ListPage, Source, SourceContext, Sto
 import { decodeEntities, extFromContentType, slugify, textOf, yearOf } from '../util';
 
 const BASE = 'https://investors.adyen.com';
-const HUB_PATHS = ['/financials', '/general-meetings'];
+const HUB_PATHS = ['/financials', '/general-meetings', '/events', '/governance'];
 const SUBPAGE_PREFIXES = ['/financials/', '/general-meetings/', '/events/'];
 const MAX_SUBPAGES = 150;
 const MAX_DOWNLOAD_BYTES = 100 * 1024 * 1024;
+const PRESS_BASE = 'https://www.adyen.com/press-and-media/';
+const PRESS_PAYLOAD_URL = `${PRESS_BASE}_payload.json`;
+const MAX_PRESS_ASSETS = 10;
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
@@ -384,6 +389,114 @@ function docLabel(d: PageDoc): string {
 }
 
 // ---------------------------------------------------------------------------
+// Press releases (www.adyen.com/press-and-media)
+// ---------------------------------------------------------------------------
+
+/** A press release from the press-and-media Nuxt payload. */
+export interface PressItem {
+  /** Contentful entry id. */
+  id: string;
+  /** Last path segment of the release URL under /press-and-media/. Unique. */
+  slug: string;
+  title: string;
+  description?: string;
+  /** ISO timestamp. For releases older than Sept 2022 this is the CMS import date, not the publication date. */
+  firstPublishedAt?: string;
+  updatedAt?: string;
+}
+
+const PRESS_CONTENT_TYPE = 'pagePressAndMediaDetail';
+const DEVALUE_WRAPPERS = new Set(['Reactive', 'ShallowReactive', 'Ref', 'ShallowRef']);
+
+/**
+ * String behind a devalue reference. `ref` is an index into the flattened array; a wrapper such as
+ * ["Reactive", n] forwards to index n. Numbers, objects, arrays and -1 (undefined) give undefined.
+ */
+function devalueString(flat: unknown[], ref: unknown, depth = 0): string | undefined {
+  if (depth > 4 || typeof ref !== 'number' || !Number.isInteger(ref) || ref < 0 || ref >= flat.length) return undefined;
+  const v = flat[ref];
+  if (typeof v === 'string') return v;
+  if (Array.isArray(v) && v.length === 2 && typeof v[0] === 'string' && DEVALUE_WRAPPERS.has(v[0])) {
+    return devalueString(flat, v[1], depth + 1);
+  }
+  return undefined;
+}
+
+/**
+ * Press releases from `https://www.adyen.com/press-and-media/_payload.json`, a Nuxt devalue payload: a flat
+ * array whose objects hold indices into that same array. Returns one item per distinct slug, in payload order.
+ */
+export function parsePressPayload(json: unknown): PressItem[] {
+  if (!Array.isArray(json)) return [];
+  const flat: unknown[] = json;
+  const bySlug = new Map<string, PressItem>();
+  for (const node of flat) {
+    if (node === null || typeof node !== 'object' || Array.isArray(node)) continue;
+    const f = node as Record<string, unknown>;
+    if (devalueString(flat, f.contentType) !== PRESS_CONTENT_TYPE) continue;
+    const slug = devalueString(flat, f.slug);
+    if (!slug || bySlug.has(slug)) continue;
+    const item: PressItem = {
+      id: devalueString(flat, f.id) ?? '',
+      slug,
+      title: devalueString(flat, f.title) ?? '',
+    };
+    const description = devalueString(flat, f.description);
+    const firstPublishedAt = devalueString(flat, f.firstPublishedAt);
+    const updatedAt = devalueString(flat, f.updatedAt);
+    if (description !== undefined) item.description = description;
+    if (firstPublishedAt !== undefined) item.firstPublishedAt = firstPublishedAt;
+    if (updatedAt !== undefined) item.updatedAt = updatedAt;
+    bySlug.set(slug, item);
+  }
+  return [...bySlug.values()];
+}
+
+const MONTH_NAMES = [
+  'january', 'february', 'march', 'april', 'may', 'june',
+  'july', 'august', 'september', 'october', 'november', 'december',
+];
+const MONTH_ALT = '(January|February|March|April|May|June|July|August|September|October|November|December)';
+/** "August 13th, 2026", "August 13, 2026" or "13 August 2026"; ordinal suffix optional. */
+const LONG_DATE_RE = new RegExp(
+  `\\b(?:${MONTH_ALT}\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(\\d{4})|(\\d{1,2})(?:st|nd|rd|th)?\\s+${MONTH_ALT}\\s+(\\d{4}))\\b`,
+  'gi',
+);
+
+/** First valid long-form date in plain text, as YYYY-MM-DD. */
+function firstLongDate(text: string): string | undefined {
+  for (const m of text.matchAll(LONG_DATE_RE)) {
+    const [month, day, year] = m[1] ? [m[1], m[2], m[3]] : [m[5], m[4], m[6]];
+    const mo = MONTH_NAMES.indexOf(month.toLowerCase());
+    const d = Number(day);
+    const check = new Date(Date.UTC(Number(year), mo, d));
+    if (check.getUTCMonth() !== mo || check.getUTCDate() !== d) continue;
+    return `${year}-${String(mo + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+  return undefined;
+}
+
+/**
+ * A press release page: title (the `<title>` without its " - Adyen" suffix), the first long-form date in the
+ * main content, the main content's HTML (scripts and styles removed), and the document links inside it.
+ */
+export function parsePressPage(
+  html: string,
+  pageUrl: string,
+): { title: string; date?: string; contentHtml: string; assets: PageDoc[] } {
+  const title = pageTitle(html).replace(/\s+-\s+Adyen\s*$/i, '').trim();
+  const body = html.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '').replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, '');
+  const contentHtml =
+    /<main\b[^>]*>([\s\S]*?)<\/main\s*>/i.exec(body)?.[1] ?? /<body\b[^>]*>([\s\S]*?)<\/body\s*>/i.exec(body)?.[1] ?? body;
+  return {
+    title,
+    date: firstLongDate(textOf(contentHtml)),
+    contentHtml,
+    assets: parseDocumentLinks(contentHtml, pageUrl),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Source
 // ---------------------------------------------------------------------------
 
@@ -400,6 +513,94 @@ async function getHtml(url: string, ctx: SourceContext): Promise<string | undefi
   });
   if (res.status !== 200) return undefined;
   return res.text();
+}
+
+interface FetchedDoc {
+  body: ArrayBuffer | ReadableStream<Uint8Array>;
+  contentType: string;
+  contentDisposition: string | null;
+  /** URL after redirects. */
+  finalUrl: string;
+  /** From the content type, else the Content-Disposition name (brand assets), else the URL; 'bin' if none. */
+  ext: string;
+}
+
+/** GET one document. Throws on a non-200 response or a declared size over the limit. The body is streamed. */
+async function fetchDocument(url: string, ctx: SourceContext): Promise<FetchedDoc> {
+  const res = await ctx.fetch(url, {
+    redirect: 'follow',
+    headers: { ...BROWSER_HEADERS, accept: '*/*' },
+  });
+  if (res.status !== 200) throw new Error(`adyen: download ${url} returned ${res.status}`);
+
+  const declared = Number(res.headers.get('content-length') ?? NaN);
+  if (Number.isFinite(declared) && declared > MAX_DOWNLOAD_BYTES) {
+    throw new Error(`adyen: ${url} is ${declared} bytes, over the 100 MB limit`);
+  }
+  // Stream the body: some documents (videos, iXBRL packs) are far larger than Worker memory.
+  const body: ArrayBuffer | ReadableStream<Uint8Array> = res.body ?? (await res.arrayBuffer());
+
+  const contentType = res.headers.get('content-type') ?? 'application/octet-stream';
+  const contentDisposition = res.headers.get('content-disposition');
+  const isBrandAsset = /^https?:\/\/brand\.adyen\.com\//i.test(url);
+  const finalUrl = res.url || url;
+  const ext =
+    extFromContentType(contentType, '') ||
+    (isBrandAsset ? extFromDisposition(contentDisposition) : '') ||
+    extFromUrl(finalUrl) ||
+    'bin';
+  return { body, contentType, contentDisposition, finalUrl, ext };
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/**
+ * A press release: the page as an HTML object (its date corrects the listing's provisional one), then one object
+ * per distinct document linked from the page, up to MAX_PRESS_ASSETS. A document that fails is skipped with a warning.
+ */
+async function downloadPressRelease(ref: FilingRef, ctx: SourceContext): Promise<StoredObject[]> {
+  const res = await ctx.fetch(ref.url, {
+    redirect: 'follow',
+    headers: { ...BROWSER_HEADERS, accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8' },
+  });
+  if (res.status !== 200) throw new Error(`adyen: press release ${ref.url} returned ${res.status}`);
+
+  const page = parsePressPage(await res.text(), ref.url);
+  const title = page.title || ref.title;
+  const date = page.date ?? ref.date;
+  const stem = `adyen/${ref.ticker}/${yearOf(date)}/${date}_pr_${slugify(title)}`;
+
+  const out: StoredObject[] = [
+    {
+      key: `${stem}.html`,
+      body: `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head><body>${page.contentHtml}</body></html>`,
+      contentType: 'text/html; charset=utf-8',
+      meta: { ...ref, date, title, provisionalDate: page.date === undefined, pageUrl: ref.url },
+    },
+  ];
+
+  const assets: PageDoc[] = [];
+  for (const a of page.assets) {
+    if (assets.some((x) => x.id === a.id)) continue;
+    assets.push(a);
+    if (assets.length === MAX_PRESS_ASSETS) break;
+  }
+  for (const asset of assets) {
+    try {
+      const doc = await fetchDocument(asset.url, ctx);
+      out.push({
+        key: `${stem}_${asset.id}.${doc.ext}`,
+        body: doc.body,
+        contentType: doc.contentType,
+        meta: { ...ref, date, sourceUrl: asset.url, finalUrl: doc.finalUrl, contentType: doc.contentType },
+      });
+    } catch (err) {
+      console.warn(`adyen: press release asset ${asset.url} skipped: ${(err as Error).message}`);
+    }
+  }
+  return out;
 }
 
 export const adyenSource: Source = {
@@ -522,43 +723,57 @@ export const adyenSource: Source = {
       }
     }
 
+    // 3. Press releases, one ref each, from the press-and-media payload. A failure here loses only these refs.
+    try {
+      const res = await ctx.fetch(PRESS_PAYLOAD_URL, {
+        redirect: 'follow',
+        headers: { ...BROWSER_HEADERS, accept: 'application/json,*/*;q=0.8' },
+      });
+      if (res.status !== 200) throw new Error(`status ${res.status}`);
+      const items = parsePressPayload(await res.json());
+      if (items.length === 0) throw new Error('no press releases in the payload');
+      for (const item of items) {
+        const url = PRESS_BASE + item.slug;
+        const published = item.firstPublishedAt?.slice(0, 10);
+        add({
+          source: 'adyen',
+          ticker: holding.ticker,
+          id: `pr-${item.slug}`,
+          date: published && /^\d{4}-\d{2}-\d{2}$/.test(published) ? published : today,
+          title: item.title || item.slug,
+          form: 'Press release',
+          url,
+          extra: {
+            kind: 'press-release',
+            contentfulId: item.id,
+            description: item.description,
+            provisionalDate: true,
+            pageUrl: url,
+          },
+        });
+      }
+    } catch (err) {
+      console.warn(`adyen: press releases not listed (${PRESS_PAYLOAD_URL}): ${(err as Error).message}`);
+    }
+
     return { refs, nextCursor: undefined };
   },
 
   async download(ref: FilingRef, ctx: SourceContext): Promise<StoredObject[]> {
-    const res = await ctx.fetch(ref.url, {
-      redirect: 'follow',
-      headers: { ...BROWSER_HEADERS, accept: '*/*' },
-    });
-    if (res.status !== 200) throw new Error(`adyen: download ${ref.url} returned ${res.status}`);
+    if (ref.extra?.kind === 'press-release') return downloadPressRelease(ref, ctx);
 
-    const declared = Number(res.headers.get('content-length') ?? NaN);
-    if (Number.isFinite(declared) && declared > MAX_DOWNLOAD_BYTES) {
-      throw new Error(`adyen: ${ref.url} is ${declared} bytes, over the 100 MB limit`);
-    }
-    // Stream the body: some documents (videos, iXBRL packs) are far larger than Worker memory.
-    const body: ArrayBuffer | ReadableStream<Uint8Array> = res.body ?? (await res.arrayBuffer());
-
-    const contentType = res.headers.get('content-type') ?? 'application/octet-stream';
-    const contentDisposition = res.headers.get('content-disposition');
-    const isBrandAsset = /^https?:\/\/brand\.adyen\.com\//i.test(ref.url);
-    const ext =
-      extFromContentType(contentType, '') ||
-      (isBrandAsset ? extFromDisposition(contentDisposition) : '') ||
-      extFromUrl(res.url || ref.url) ||
-      'bin';
-
-    const key = `adyen/${ref.ticker}/${yearOf(ref.date)}/${slugify(ref.title)}_${ref.id}.${ext}`;
+    const doc = await fetchDocument(ref.url, ctx);
+    const key = `adyen/${ref.ticker}/${yearOf(ref.date)}/${slugify(ref.title)}_${ref.id}.${doc.ext}`;
     return [
       {
         key,
-        body,
-        contentType,
+        body: doc.body,
+        contentType: doc.contentType,
         meta: {
           ...ref,
-          finalUrl: res.url || ref.url,
-          contentType,
-          contentDisposition,
+          finalUrl: doc.finalUrl,
+          contentType: doc.contentType,
+          contentDisposition: doc.contentDisposition,
         },
       },
     ];

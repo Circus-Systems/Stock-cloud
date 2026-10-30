@@ -1,8 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
-import { adyenSource, assetIdFromUrl, parseDocumentLinks, parseFinancialsTables } from '../src/sources/adyen';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  adyenSource,
+  assetIdFromUrl,
+  parseDocumentLinks,
+  parseFinancialsTables,
+  parsePressPage,
+  parsePressPayload,
+} from '../src/sources/adyen';
 import type { Fetcher, FilingRef, Holding, SourceContext } from '../src/types';
 import { sha1Hex } from '../src/util';
 
@@ -11,16 +18,27 @@ const fixture = (name: string): string => readFileSync(join(FIXTURES, name), 'ut
 
 const FIN_URL = 'https://investors.adyen.com/financials';
 const GM_URL = 'https://investors.adyen.com/general-meetings';
+const EVENTS_URL = 'https://investors.adyen.com/events';
+const GOV_URL = 'https://investors.adyen.com/governance';
 const H1_URL = 'https://investors.adyen.com/financials/h1-2026-c2a1a';
+const PAYLOAD_URL = 'https://www.adyen.com/press-and-media/_payload.json';
+const PRESS_URL = 'https://www.adyen.com/press-and-media/adyen-publishes-h1-2026-financial-results-3wjne';
 
 const holding: Holding = { ticker: 'ADYEN', exchange: 'XAMS', sources: ['adyen'] };
 
-/** Fetch stub: the three fixture pages return 200, every other URL returns 404. */
+const EMPTY_HUB = '<!doctype html><html><head><title>Adyen</title></head><body></body></html>';
+
+/**
+ * Fetch stub: the three fixture pages return 200, the events and governance hubs return an empty 200 page
+ * (they have no fixtures), every other URL returns 404.
+ */
 function fixtureFetch(extra: Record<string, () => Response> = {}): Fetcher {
   const pages: Record<string, string> = {
     [FIN_URL]: fixture('adyen_financials.html'),
     [GM_URL]: fixture('adyen_general_meetings.html'),
     [H1_URL]: fixture('adyen_subpage.html'),
+    [EVENTS_URL]: EMPTY_HUB,
+    [GOV_URL]: EMPTY_HUB,
   };
   return async (url: string) => {
     if (extra[url]) return extra[url]();
@@ -221,5 +239,226 @@ describe('download', () => {
   it('throws on a non-200 response', async () => {
     const fetch = fixtureFetch({ [pdfRef.url]: () => new Response('nope', { status: 404 }) });
     await expect(adyenSource.download(pdfRef, ctxWith(fetch))).rejects.toThrow();
+  });
+});
+
+const payloadResponse = (): Response =>
+  new Response(fixture('adyen_press_payload.json'), { status: 200, headers: { 'content-type': 'application/json' } });
+
+const pageResponse = (html: string = fixture('adyen_press_release.html')): Response =>
+  new Response(html, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } });
+
+describe('parsePressPayload', () => {
+  const items = parsePressPayload(JSON.parse(fixture('adyen_press_payload.json')));
+
+  it('returns at least 400 releases with unique slugs', () => {
+    expect(items.length).toBeGreaterThanOrEqual(400);
+    expect(new Set(items.map((i) => i.slug)).size).toBe(items.length);
+  });
+
+  it('resolves the index references of a release', () => {
+    expect(items).toContainEqual(
+      expect.objectContaining({
+        id: '6r9VZ0uZ15v8AB0Xlp7FkG',
+        slug: 'adyen-publishes-q3-2026-business-update-6r9vz0',
+        title: 'Adyen publishes Q3 2026 Business Update',
+        description: 'Adyen delivers strong execution and net revenue growth',
+        firstPublishedAt: '2026-10-28T06:30:01.430Z',
+      }),
+    );
+  });
+
+  it('gives every release a slug, id and first publication date', () => {
+    for (const i of items) {
+      expect(i.slug).toMatch(/^[a-z0-9-]+$/);
+      expect(i.id).not.toBe('');
+      expect(i.firstPublishedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    }
+  });
+
+  it('returns an empty title as an empty string (some CMS entries have none)', () => {
+    expect(items.every((i) => typeof i.title === 'string')).toBe(true);
+  });
+
+  it('returns nothing for input that is not a payload array', () => {
+    expect(parsePressPayload({ data: 1 })).toEqual([]);
+    expect(parsePressPayload(null)).toEqual([]);
+  });
+});
+
+describe('parsePressPage', () => {
+  const page = parsePressPage(fixture('adyen_press_release.html'), PRESS_URL);
+
+  it('takes the title without the " - Adyen" suffix', () => {
+    expect(page.title).toBe('Adyen publishes H1 2026 financial results');
+  });
+
+  it('reads the first long-form date in the main content', () => {
+    expect(page.date).toBe('2026-08-13');
+  });
+
+  it('keeps the main content without scripts or styles', () => {
+    expect(page.contentHtml).toContain('today announces financial results');
+    expect(page.contentHtml).not.toContain('<script');
+    expect(page.contentHtml).not.toContain('<style');
+  });
+
+  it('lists the brand.adyen.com assets linked from the content', () => {
+    expect(page.assets.some((a) => a.url.startsWith('https://brand.adyen.com') && a.id.startsWith('asset-'))).toBe(true);
+  });
+
+  it('reads the three date forms and ignores impossible dates', () => {
+    const dateOf = (text: string): string | undefined => parsePressPage(`<main><p>${text}</p></main>`, PRESS_URL).date;
+    expect(dateOf('August 13th, 2026')).toBe('2026-08-13');
+    expect(dateOf('August 13, 2026')).toBe('2026-08-13');
+    expect(dateOf('13 August 2026')).toBe('2026-08-13');
+    expect(dateOf('February 30, 2026')).toBeUndefined();
+    expect(dateOf('no date here')).toBeUndefined();
+  });
+});
+
+describe('list with press releases', () => {
+  it('appends one press ref per release after the hub refs', async () => {
+    const base = await adyenSource.list(holding, 'full', undefined, ctxWith(fixtureFetch()));
+    const page = await adyenSource.list(
+      holding,
+      'full',
+      undefined,
+      ctxWith(fixtureFetch({ [PAYLOAD_URL]: payloadResponse })),
+    );
+    expect(page.refs.slice(0, base.refs.length)).toEqual(base.refs);
+    const press = page.refs.slice(base.refs.length);
+    expect(press.length).toBeGreaterThanOrEqual(400);
+    expect(press.every((r) => r.id.startsWith('pr-') && r.form === 'Press release')).toBe(true);
+    const ids = page.refs.map((r) => r.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('maps a release to its url, first publication date and extras', async () => {
+    const page = await adyenSource.list(
+      holding,
+      'full',
+      undefined,
+      ctxWith(fixtureFetch({ [PAYLOAD_URL]: payloadResponse })),
+    );
+    const q3 = page.refs.find((r) => r.id === 'pr-adyen-publishes-q3-2026-business-update-6r9vz0');
+    expect(q3).toMatchObject({
+      source: 'adyen',
+      ticker: 'ADYEN',
+      date: '2026-10-28',
+      title: 'Adyen publishes Q3 2026 Business Update',
+      form: 'Press release',
+      url: 'https://www.adyen.com/press-and-media/adyen-publishes-q3-2026-business-update-6r9vz0',
+      extra: { kind: 'press-release', contentfulId: '6r9VZ0uZ15v8AB0Xlp7FkG', provisionalDate: true },
+    });
+  });
+
+  it('keeps the hub refs and warns when the payload returns 500', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const base = await adyenSource.list(holding, 'full', undefined, ctxWith(fixtureFetch()));
+      const page = await adyenSource.list(
+        holding,
+        'full',
+        undefined,
+        ctxWith(fixtureFetch({ [PAYLOAD_URL]: () => new Response('boom', { status: 500 }) })),
+      );
+      expect(page.refs).toEqual(base.refs);
+      expect(warn).toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('requests the events and governance hubs', async () => {
+    const base = fixtureFetch();
+    const requested: string[] = [];
+    await adyenSource.list(
+      holding,
+      'full',
+      undefined,
+      ctxWith(async (url, init) => {
+        requested.push(url);
+        return base(url, init);
+      }),
+    );
+    expect(requested).toEqual(expect.arrayContaining([EVENTS_URL, GOV_URL]));
+  });
+
+  it('throws when the events hub fails', async () => {
+    const fetch = fixtureFetch({ [EVENTS_URL]: () => new Response('down', { status: 503 }) });
+    await expect(adyenSource.list(holding, 'full', undefined, ctxWith(fetch))).rejects.toThrow();
+  });
+});
+
+describe('download press release', () => {
+  const pressRef: FilingRef = {
+    source: 'adyen',
+    ticker: 'ADYEN',
+    id: 'pr-adyen-publishes-h1-2026-financial-results-3wjne',
+    date: '2026-01-01',
+    title: 'Adyen publishes H1 2026 financial results',
+    form: 'Press release',
+    url: PRESS_URL,
+    extra: { kind: 'press-release', provisionalDate: true, pageUrl: PRESS_URL },
+  };
+  const STEM = 'adyen/ADYEN/2026/2026-08-13_pr_adyen-publishes-h1-2026-financial-results';
+  const assetUrl = parsePressPage(fixture('adyen_press_release.html'), PRESS_URL).assets.find((a) =>
+    a.url.startsWith('https://brand.adyen.com'),
+  )!.url;
+
+  it('stores the page as html under its page date, then each linked document', async () => {
+    const fetch = fixtureFetch({
+      [PRESS_URL]: () => pageResponse(),
+      [assetUrl]: () =>
+        new Response(new Uint8Array([0x25, 0x50, 0x44, 0x46]).buffer, {
+          status: 200,
+          headers: { 'content-type': 'application/pdf' },
+        }),
+    });
+    const objs = await adyenSource.download(pressRef, ctxWith(fetch));
+    expect(objs).toHaveLength(2);
+    const [html, pdf] = objs;
+    expect(html.key).toBe(`${STEM}.html`);
+    expect(html.contentType).toBe('text/html; charset=utf-8');
+    expect(html.meta).toMatchObject({
+      date: '2026-08-13',
+      provisionalDate: false,
+      title: 'Adyen publishes H1 2026 financial results',
+      pageUrl: PRESS_URL,
+    });
+    expect(html.body as string).toContain('<title>Adyen publishes H1 2026 financial results</title>');
+    expect(pdf.key.startsWith(`${STEM}_asset-`)).toBe(true);
+    expect(pdf.key.endsWith('.pdf')).toBe(true);
+    expect(pdf.contentType).toBe('application/pdf');
+    expect(pdf.meta).toMatchObject({ date: '2026-08-13', sourceUrl: assetUrl });
+  });
+
+  it('keeps the html when a linked document returns 404', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const fetch = fixtureFetch({
+        [PRESS_URL]: () => pageResponse(),
+        [assetUrl]: () => new Response('nope', { status: 404 }),
+      });
+      const objs = await adyenSource.download(pressRef, ctxWith(fetch));
+      expect(objs.map((o) => o.key)).toEqual([`${STEM}.html`]);
+      expect(warn).toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('falls back to the listing date when the page has no date', async () => {
+    const html = '<html><head><title>Plain - Adyen</title></head><body><main><p>No date.</p></main></body></html>';
+    const fetch = fixtureFetch({ [PRESS_URL]: () => pageResponse(html) });
+    const [obj] = await adyenSource.download(pressRef, ctxWith(fetch));
+    expect(obj.key).toBe('adyen/ADYEN/2026/2026-01-01_pr_plain.html');
+    expect(obj.meta).toMatchObject({ date: '2026-01-01', provisionalDate: true, title: 'Plain' });
+  });
+
+  it('throws when the release page is not 200', async () => {
+    const fetch = fixtureFetch({ [PRESS_URL]: () => new Response('gone', { status: 404 }) });
+    await expect(adyenSource.download(pressRef, ctxWith(fetch))).rejects.toThrow();
   });
 });
