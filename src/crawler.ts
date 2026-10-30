@@ -357,11 +357,13 @@ export class Crawler extends DurableObject<Env> {
       await this.env.FILINGS.put(`${obj.key}.meta.json`, JSON.stringify(meta, null, 2), { httpMetadata: { contentType: 'application/json' } });
       keys.push(obj.key);
     }
+    // A source may resolve a better date while downloading (e.g. a page carries the real publication date).
+    const resolvedDate = objects.map((o) => o.meta?.date).find((d): d is string => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)) ?? ref.date;
     this.sql.exec(
-      'INSERT INTO seen (ticker, fid, date, time, title, form, keys, archived_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(ticker, fid) DO UPDATE SET keys = excluded.keys, archived_at = excluded.archived_at',
+      'INSERT INTO seen (ticker, fid, date, time, title, form, keys, archived_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(ticker, fid) DO UPDATE SET keys = excluded.keys, date = excluded.date, archived_at = excluded.archived_at',
       ref.ticker,
       ref.id,
-      ref.date,
+      resolvedDate,
       ref.time ?? null,
       ref.title,
       ref.form ?? null,

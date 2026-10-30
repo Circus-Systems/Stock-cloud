@@ -8,7 +8,7 @@ share portfolio into an R2 bucket and then checks for new filings **every day**.
 | US (XNAS / XNYS) and dual‑listed ADRs/CDIs | SEC EDGAR (`data.sec.gov` submissions API + `www.sec.gov/Archives`) | every filing since 1994: primary document per filing (10‑K, 10‑Q, 8‑K, Form 4, N‑CSR …). Optionally the complete submission text file. |
 | ASX | ASX historical announcements archive (1998→, one page per year) + Markit "recent announcements" JSON | every PDF announcement from 2002 on; pre‑2002 text announcements stored as `.txt` |
 | London (XLON) | the company's own RNS feed (BrighterIR, as embedded on the investor‑relations site) | every RNS since 2004 as HTML, plus the PDF export |
-| Amsterdam (XAMS) | investors.adyen.com (financials + general meetings hubs and sub‑pages) | every published document (shareholder letters, annual reports, Pillar 3, AGM papers, iXBRL packs) |
+| Amsterdam (XAMS) | investors.adyen.com (financials, general meetings, events, governance hubs and sub‑pages) + the adyen.com press‑release feed | every published document (shareholder letters, annual reports, Pillar 3, AGM papers, iXBRL packs) and every press release as HTML with its attached PDFs — Adyen publishes its regulatory announcements as press releases |
 
 The portfolio is `holdings.json` (57 holdings: the two CommSec accounts plus the
 international account). Dual‑listed names (BHP, RIO, XYZ/Block) are archived from
@@ -25,6 +25,7 @@ asx/BHP/2024/2024-12-18_02897739_federal-court-of-australia-class-action-proceed
 asx/BHP/1998/1998-12-30_doc144356_section-235-notice-director-s-interests.txt
 rns/RMV/2023/2023-09-21_xennvzx_transaction-in-own-shares.html   (+ .pdf)
 adyen/ADYEN/2026/shareholder-letter-and-interim-financial-statements-h1-2026_asset-146118.pdf
+adyen/ADYEN/2026/2026-08-13_pr_adyen-publishes-h1-2026-financial-results.html   (+ attached assets)
 _index/<source>/<TICKER>.json      # one JSON index per holding, rewritten after every sync
 ```
 
@@ -101,6 +102,8 @@ holding stops future syncs; existing objects stay in the bucket.
 * ASX announcements for notes/bonds are archived under the parent issuer's full
   announcement stream (e.g. everything CVC publishes, not only CVCHB items).
 * Adyen has no regulatory filing API; documents are discovered from the investor site, so
-  dates for older documents are approximate (year‑level, `dateUnknown` flagged in meta).
+  dates for older hub documents are approximate (year‑level, `dateUnknown` flagged in meta).
+  Press releases carry the publication date printed on the page. The feed mixes regulatory
+  releases with customer‑announcement marketing; both are archived (see `form`/`title`).
 * SEC: one primary document per filing by default; exhibits are reachable via the
   `filingIndex` URL in the sidecar, or set `SEC_FULL_SUBMISSION="true"`.
