@@ -143,11 +143,14 @@ export class Crawler extends DurableObject<Env> {
     let recent = 0;
     for (const holding of holdings) {
       if (!holding.sources.includes(this.sourceId)) throw new Error(`${holding.ticker} is not configured for source ${this.sourceId}`);
-      const resolved: ListMode = mode === 'auto' ? (this.kvGet(`lastrun:${holding.ticker}`) ? 'recent' : 'full') : mode;
+      // auto: full history once per holding (even while that first run is still in progress), recent afterwards.
+      const started = this.kvGet(`lastrun:${holding.ticker}`) || this.kvGet(`fullstarted:${holding.ticker}`);
+      const resolved: ListMode = mode === 'auto' ? (started ? 'recent' : 'full') : mode;
       if (resolved === 'full') full++;
       else recent++;
       const dedupe = `list:${holding.ticker}:${resolved}:start`;
       const ok = this.enqueue({ kind: 'list', ticker: holding.ticker, mode: resolved, holding } as Job, dedupe, holding.ticker);
+      if (ok && resolved === 'full') this.kvSet(`fullstarted:${holding.ticker}`, new Date().toISOString());
       (ok ? queued : skipped).push(`${holding.ticker}:${resolved}`);
       this.kvSet(`holding:${holding.ticker}`, JSON.stringify(holding));
     }
