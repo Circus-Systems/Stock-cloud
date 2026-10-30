@@ -1,0 +1,451 @@
+{
+  "holdings": [
+    {
+      "ticker": "MSFT",
+      "exchange": "XNAS",
+      "name": "Microsoft Corp",
+      "sources": [
+        "sec"
+      ],
+      "cik": "789019"
+    },
+    {
+      "ticker": "AAPL",
+      "exchange": "XNAS",
+      "name": "Apple Inc.",
+      "sources": [
+        "sec"
+      ],
+      "cik": "320193"
+    },
+    {
+      "ticker": "AMZN",
+      "exchange": "XNAS",
+      "name": "Amazon.com Inc",
+      "sources": [
+        "sec"
+      ],
+      "cik": "1018724"
+    },
+    {
+      "ticker": "WDAY",
+      "exchange": "XNAS",
+      "name": "Workday, Inc.",
+      "sources": [
+        "sec"
+      ],
+      "cik": "1327811"
+    },
+    {
+      "ticker": "META",
+      "exchange": "XNAS",
+      "name": "Meta Platforms, Inc.",
+      "sources": [
+        "sec"
+      ],
+      "cik": "1326801"
+    },
+    {
+      "ticker": "TOST",
+      "exchange": "XNYS",
+      "name": "Toast, Inc.",
+      "sources": [
+        "sec"
+      ],
+      "cik": "1650164"
+    },
+    {
+      "ticker": "CRM",
+      "exchange": "XNYS",
+      "name": "Salesforce, Inc.",
+      "sources": [
+        "sec"
+      ],
+      "cik": "1108524"
+    },
+    {
+      "ticker": "ADBE",
+      "exchange": "XNAS",
+      "name": "Adobe Inc.",
+      "sources": [
+        "sec"
+      ],
+      "cik": "796343"
+    },
+    {
+      "ticker": "NVO",
+      "exchange": "XNYS",
+      "name": "Novo Nordisk A/S (ADR)",
+      "sources": [
+        "sec"
+      ],
+      "cik": "353278"
+    },
+    {
+      "ticker": "KIO",
+      "exchange": "XNYS",
+      "name": "KKR Income Opportunities Fund",
+      "sources": [
+        "sec"
+      ],
+      "cik": "1515940"
+    },
+    {
+      "ticker": "UBER",
+      "exchange": "XNYS",
+      "name": "Uber Technologies, Inc.",
+      "sources": [
+        "sec"
+      ],
+      "cik": "1543151"
+    },
+    {
+      "ticker": "GOOG",
+      "exchange": "XNAS",
+      "name": "Alphabet Inc.",
+      "sources": [
+        "sec"
+      ],
+      "cik": "1652044"
+    },
+    {
+      "ticker": "INTU",
+      "exchange": "XNAS",
+      "name": "Intuit Inc.",
+      "sources": [
+        "sec"
+      ],
+      "cik": "896878"
+    },
+    {
+      "ticker": "ARB",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "ATEC",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "AUI",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "CAR",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "CHL",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "COH",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "CRED",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "CVCHB",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ],
+      "name": "CVC Limited capital notes (issuer code CVC)",
+      "asxArchiveCode": "CVC"
+    },
+    {
+      "ticker": "DN1",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "DRGN",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "FANG",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "GQG",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "GSBE47",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ],
+      "name": "Australian Government Treasury Bond 2047 (issuer code GSB)",
+      "asxArchiveCode": "GSB"
+    },
+    {
+      "ticker": "HBRD",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "HDN",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "HSN",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "ICME",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "IRE",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "IRI",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "JAN",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "KKC",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "KLS",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "LEND",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "LFSPB",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ],
+      "name": "Latitude Group Holdings capital notes (issuer code LFS)",
+      "asxArchiveCode": "LFS"
+    },
+    {
+      "ticker": "MA2HA",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ],
+      "name": "MA Credit Portfolio Holdings notes (issuer code MA2)",
+      "asxArchiveCode": "MA2"
+    },
+    {
+      "ticker": "NFNG",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ],
+      "name": "Nufarm Finance (NZ) notes (parent code NUF)",
+      "asxArchiveCode": "NUF"
+    },
+    {
+      "ticker": "SDR",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "SEK",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "SUL",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "VAS",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "VTS",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "VVLU",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "WTC",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "XRO",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "XYZ",
+      "exchange": "XASX",
+      "sources": [
+        "asx",
+        "sec"
+      ],
+      "name": "Block, Inc. (CDI)",
+      "cik": "1512673"
+    },
+    {
+      "ticker": "YAL",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "BHP",
+      "exchange": "XASX",
+      "sources": [
+        "asx",
+        "sec"
+      ],
+      "name": "BHP Group Ltd",
+      "cik": "811809"
+    },
+    {
+      "ticker": "FMG",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "MXT",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "RIO",
+      "exchange": "XASX",
+      "sources": [
+        "asx",
+        "sec"
+      ],
+      "name": "Rio Tinto Ltd",
+      "cik": "863064"
+    },
+    {
+      "ticker": "STW",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "VHY",
+      "exchange": "XASX",
+      "sources": [
+        "asx"
+      ]
+    },
+    {
+      "ticker": "RMV",
+      "exchange": "XLON",
+      "name": "Rightmove plc",
+      "sources": [
+        "rns"
+      ],
+      "brighterir": "rightmove_plc"
+    },
+    {
+      "ticker": "ADYEN",
+      "exchange": "XAMS",
+      "name": "Adyen N.V.",
+      "sources": [
+        "adyen"
+      ]
+    }
+  ]
+}
