@@ -13,37 +13,15 @@
  *      POST /retry/:source         re-queue failed jobs
  *      POST /forget/:source/:ticker[?id=]     forget archived filings so they are fetched again
  */
-import holdingsJson from '../holdings.json';
-import type { Env, Holding, HoldingsConfig, ListMode, SourceId } from './types';
+import type { Env, ListMode, SourceId } from './types';
 import { SOURCE_IDS } from './sources';
 import type { Crawler } from './crawler';
+import { loadHoldings, queueAll } from './sync';
 
 export { Crawler } from './crawler';
 
-function loadHoldings(env: Env): Holding[] {
-  const cfg = (env.HOLDINGS_JSON ? JSON.parse(env.HOLDINGS_JSON) : holdingsJson) as HoldingsConfig;
-  return cfg.holdings;
-}
-
 function crawler(env: Env, source: SourceId): DurableObjectStub<Crawler> {
   return env.CRAWLER.get(env.CRAWLER.idFromName(source)) as unknown as DurableObjectStub<Crawler>;
-}
-
-async function queueAll(env: Env, mode: ListMode, only?: string): Promise<Record<string, unknown>> {
-  const holdings = loadHoldings(env).filter((h) => !only || h.ticker.toUpperCase() === only.toUpperCase());
-  const queued: string[] = [];
-  const errors: string[] = [];
-  for (const h of holdings) {
-    for (const s of h.sources) {
-      try {
-        const fresh = await crawler(env, s).enqueueSync(h, mode);
-        queued.push(`${s}:${h.ticker}${fresh ? '' : ' (already queued)'}`);
-      } catch (e) {
-        errors.push(`${s}:${h.ticker}: ${e instanceof Error ? e.message : String(e)}`);
-      }
-    }
-  }
-  return { mode, holdings: holdings.length, queued, errors };
 }
 
 function json(data: unknown, status = 200): Response {

@@ -40,11 +40,14 @@ metadata (`source`, `ticker`, `id`, `date`, `form`, `title`).
 * `src/crawler.ts` — a SQLite‑backed Durable Object, **one instance per source**
   (`sec`, `asx`, `rns`, `adyen`). It holds a job queue (`list` → `download` →
   `export-index`), a `seen` table of archived filings and a `failed` table. Its alarm
-  handler processes ≤25 jobs per invocation and immediately re‑arms itself, so a
-  multi‑thousand‑document backfill is spread over many short invocations, while all
-  upstream requests of one source go through a single throttled fetcher (SEC ≤ ~7 req/s,
-  the others ≤ 2 req/s). Jobs retry with exponential back‑off (6 attempts) before being
-  parked in `failed`.
+  handler processes up to 60 jobs (≤45 s) per invocation with a small per‑source
+  concurrency (SEC 4, ASX 3, RNS 2, Adyen 2) and immediately re‑arms itself, so a
+  multi‑thousand‑document backfill is spread over many short invocations. All upstream
+  requests of one source go through a shared slot‑based throttle (SEC ≤ ~6 req/s, ASX
+  ≤ 2.5 req/s, the others ≤ 2 req/s). Large bodies are streamed into R2 as multipart
+  uploads, never buffered whole. Jobs retry with exponential back‑off (6 attempts) before
+  being parked in `failed`. Note that a `wrangler deploy` resets the Durable Objects: jobs
+  in flight at that moment fail once and are retried 30 s later.
 * `src/sources/*.ts` — one module per data source implementing `list()` (paged
   enumeration, with a `full` and a `recent` mode) and `download()` (returns the R2
   objects for one filing). They are pure with respect to I/O (all HTTP via the context
@@ -56,7 +59,7 @@ Everything that mutates needs `Authorization: Bearer <ADMIN_TOKEN>` (a Worker se
 
 ```
 GET  /                         overview
-GET  /status                   queue depth, archived counts, last error — per source
+GET  /status                   per source: queue depth, archived counts, last error, last batch timing, recent jobs
 GET  /holdings                 the configured portfolio
 GET  /index/:source/:TICKER    archived filings for one holding
 GET  /failed/:source           jobs that gave up
@@ -65,6 +68,7 @@ POST /sync?ticker=BHP&mode=full|recent
 POST /retry/:source            re‑queue failed jobs
 POST /forget/:source/:TICKER[?id=…]   forget archived filings so they are fetched again
 POST /kick                     re‑arm the alarms (after a deploy)
+POST /probe  {url, headers}    fetch a URL from the Worker's egress (diagnostics, e.g. SEC blocks)
 ```
 
 ## Develop / deploy
