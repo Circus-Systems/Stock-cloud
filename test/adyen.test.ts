@@ -1,11 +1,13 @@
 import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { adyenSource, assetIdFromUrl, parseDocumentLinks, parseFinancialsTables } from '../src/sources/adyen';
 import type { Fetcher, FilingRef, Holding, SourceContext } from '../src/types';
 import { sha1Hex } from '../src/util';
 
-const fixture = (name: string): string =>
-  readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
+const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
+const fixture = (name: string): string => readFileSync(join(FIXTURES, name), 'utf8');
 
 const FIN_URL = 'https://investors.adyen.com/financials';
 const GM_URL = 'https://investors.adyen.com/general-meetings';
@@ -137,9 +139,28 @@ describe('list', () => {
 
   it('titles table documents from row, period and year', async () => {
     const page = await adyenSource.list(holding, 'full', undefined, ctxWith(fixtureFetch()));
-    const h1 = page.refs.find((r) => r.url.startsWith('https://brand.adyen.com') && r.title.startsWith('Shareholder letter and interim financial statements H1 2026'));
+    const h1 = page.refs.find((r) => r.title === 'Financial comparison H1 2026');
     expect(h1).toBeDefined();
+    expect(h1!.url.startsWith('https://brand.adyen.com')).toBe(true);
     expect(h1!.date).toBe('2026-06-30');
+    expect(h1!.extra).toMatchObject({ table: 'Half-year results', row: 'Financial comparison', period: 'H1', year: '2026' });
+  });
+
+  it('does not repeat the year when the table period is the year itself', async () => {
+    const page = await adyenSource.list(holding, 'full', undefined, ctxWith(fixtureFetch()));
+    expect(page.refs.some((r) => r.title === 'Convening notice 2026')).toBe(true);
+  });
+
+  it('uses the track title for stacked-list "Download PDF" links outside the tables', async () => {
+    const page = await adyenSource.list(holding, 'full', undefined, ctxWith(fixtureFetch()));
+    const rating = page.refs.find((r) => r.id === 'asset-146118');
+    expect(rating?.title).toBe('Investors - Adyen S&P Global rating (14-09-2026)');
+    expect(rating?.date).toBe('2026-01-01');
+    expect(rating?.extra?.dateUnknown).toBeUndefined();
+    const ethics = page.refs.find((r) => r.title === 'The Adyen way of building an ethical business');
+    expect(ethics).toBeDefined();
+    expect(ethics!.extra?.dateUnknown).toBe(true);
+    expect(ethics!.date).toBe('2026-10-30');
   });
 
   it('titles sub-page documents with the sub-page title and derives a year', async () => {
