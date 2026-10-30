@@ -41,10 +41,10 @@ metadata (`source`, `ticker`, `id`, `date`, `form`, `title`).
   (`sec`, `asx`, `rns`, `adyen`). It holds a job queue (`list` → `download` →
   `export-index`), a `seen` table of archived filings and a `failed` table. Its alarm
   handler processes up to 60 jobs (≤45 s) per invocation with a small per‑source
-  concurrency (SEC 4, ASX 3, RNS 2, Adyen 2) and immediately re‑arms itself, so a
+  concurrency (SEC 6, ASX 5, RNS 3, Adyen 2) and immediately re‑arms itself, so a
   multi‑thousand‑document backfill is spread over many short invocations. All upstream
   requests of one source go through a shared slot‑based throttle (SEC ≤ ~6 req/s, ASX
-  ≤ 2.5 req/s, the others ≤ 2 req/s). Large bodies are streamed into R2 as multipart
+  ≤ ~3 req/s, the others ≤ 2.5 req/s). Large bodies are streamed into R2 as multipart
   uploads, never buffered whole. Jobs retry with exponential back‑off (6 attempts) before
   being parked in `failed`. Note that a `wrangler deploy` resets the Durable Objects: jobs
   in flight at that moment fail once and are retried 30 s later.
