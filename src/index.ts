@@ -78,7 +78,7 @@ export default {
         bucket: 'stock-filings',
         sources: SOURCE_IDS,
         holdings: loadHoldings(env).length,
-        endpoints: ['GET /status', 'GET /holdings', 'GET /index/:source/:ticker', 'GET /failed/:source', 'POST /backfill', 'POST /sync?ticker=&mode=', 'POST /retry/:source', 'POST /forget/:source/:ticker?id='],
+        endpoints: ['GET /status', 'GET /holdings', 'GET /index/:source/:ticker', 'GET /failed/:source', 'POST /backfill', 'POST /sync?ticker=&mode=', 'POST /retry/:source', 'POST /forget/:source/:ticker?id=', 'POST /probe {url,headers}', 'POST /kick'],
       });
     }
     if (method === 'GET' && parts[0] === 'status') {
@@ -116,6 +116,14 @@ export default {
     if (parts[0] === 'forget' && parts.length === 3 && isSource(parts[1])) {
       const id = url.searchParams.get('id') || undefined;
       return json({ forgotten: await crawler(env, parts[1]).forget(parts[2].toUpperCase(), id) });
+    }
+    if (parts[0] === 'probe') {
+      // Diagnostic: fetch a URL from the Worker's egress with optional headers (JSON body: {url, headers}).
+      const body = (await req.json().catch(() => ({}))) as { url?: string; headers?: Record<string, string> };
+      if (!body.url) return json({ error: 'url required' }, 400);
+      const r = await fetch(body.url, { headers: body.headers ?? {}, redirect: 'manual' });
+      const text = await r.text();
+      return json({ status: r.status, headers: Object.fromEntries(r.headers), bodyStart: text.slice(0, 600), bytes: text.length });
     }
     if (parts[0] === 'kick') {
       for (const s of SOURCE_IDS) await crawler(env, s).kick();

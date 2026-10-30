@@ -20,8 +20,9 @@ tag = "v1"
 new_sqlite_classes = ["Crawler"]
 
 [vars]
-# SEC fair-access policy requires a descriptive User-Agent identifying the requester.
-SEC_USER_AGENT = "circus-systems stock-cloud filings archiver (https://github.com/circus-systems/stock-cloud)"
+# SEC fair-access policy requires "Company Name contact@email" (browser-like strings are rejected as
+# an undeclared automated tool). Replace the address with a real, monitored contact.
+SEC_USER_AGENT = "circus-systems stock-cloud filings-archiver stock-cloud@circus.systems"
 # "true" to also store the complete submission .txt for every SEC filing (large).
 SEC_FULL_SUBMISSION = "false"
 
