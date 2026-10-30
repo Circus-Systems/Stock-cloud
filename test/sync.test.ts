@@ -25,9 +25,10 @@ describe('holdings config', () => {
   it('maps ASX hybrids to their issuer codes and dual listings to SEC too', () => {
     const by = Object.fromEntries(holdings.map((h) => [h.ticker, h]));
     expect(by.GSBE47.asxArchiveCode).toBe('GSB');
-    expect(by.BHP.sources).toEqual(['asx', 'sec']);
-    expect(by.RMV.sources).toEqual(['rns']);
-    expect(by.ADYEN.sources).toEqual(['adyen']);
+    expect(by.BHP.sources).toEqual(['asx', 'sec', 'prices']);
+    expect(by.RMV.sources).toEqual(['rns', 'prices']);
+    expect(by.ADYEN.sources).toEqual(['adyen', 'prices']);
+    expect(holdings.every((h) => h.sources.includes('prices'))).toBe(true);
   });
   it('can be overridden with HOLDINGS_JSON', () => {
     const h = loadHoldings({ HOLDINGS_JSON: JSON.stringify({ holdings: [{ ticker: 'X', exchange: 'XNAS', sources: ['sec'], cik: '1' }] }) });
@@ -40,18 +41,24 @@ describe('queueAll (what the daily cron does)', () => {
     const calls: string[] = [];
     const r = await queueAll(fakeEnv(async (s, h, m) => { calls.push(`${s}:${h.ticker}:${m}`); return true; }), 'recent');
     expect(r.holdings).toBe(57);
-    expect(r.queued.length).toBe(60); // 57 holdings, 3 of them on two sources
+    expect(r.queued.length).toBe(117); // 57 holdings on prices + 57 filing sources + 3 dual listings
     expect(r.errors).toEqual([]);
     expect(calls).toContain('sec:MSFT:recent');
     expect(calls).toContain('asx:BHP:recent');
     expect(calls).toContain('sec:BHP:recent');
     expect(calls).toContain('rns:RMV:recent');
     expect(calls).toContain('adyen:ADYEN:recent');
+    expect(calls).toContain('prices:GSBE47:recent');
   });
   it('filters to one ticker and reports stub errors without aborting', async () => {
     const r = await queueAll(fakeEnv(async (s) => { if (s === 'sec') throw new Error('boom'); return false; }), 'full', 'bhp');
     expect(r.holdings).toBe(1);
-    expect(r.queued).toEqual(['asx:BHP (already queued)']);
+    expect(r.queued).toEqual(['asx:BHP (already queued)', 'prices:BHP (already queued)']);
     expect(r.errors).toEqual(['sec:BHP: boom']);
+  });
+  it('can be limited to one source', async () => {
+    const r = await queueAll(fakeEnv(async () => true), 'full', undefined, 'prices');
+    expect(r.queued.length).toBe(57);
+    expect(r.queued.every((q) => q.startsWith('prices:'))).toBe(true);
   });
 });

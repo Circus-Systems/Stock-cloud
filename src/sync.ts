@@ -21,12 +21,13 @@ export function crawlerFor(env: SyncEnv, source: SourceId): CrawlerLike {
   return env.CRAWLER.get(env.CRAWLER.idFromName(source)) as CrawlerLike;
 }
 
-export async function queueAll(env: SyncEnv, mode: ListMode, only?: string): Promise<{ mode: ListMode; holdings: number; queued: string[]; errors: string[] }> {
+export async function queueAll(env: SyncEnv, mode: ListMode, only?: string, onlySource?: string): Promise<{ mode: ListMode; holdings: number; queued: string[]; errors: string[] }> {
   const holdings = loadHoldings(env).filter((h) => !only || h.ticker.toUpperCase() === only.toUpperCase());
   const queued: string[] = [];
   const errors: string[] = [];
   for (const h of holdings) {
     for (const s of h.sources) {
+      if (onlySource && s !== onlySource) continue;
       try {
         const fresh = await crawlerFor(env, s).enqueueSync(h, mode);
         queued.push(`${s}:${h.ticker}${fresh ? '' : ' (already queued)'}`);

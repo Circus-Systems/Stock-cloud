@@ -56,7 +56,7 @@ export default {
         bucket: 'stock-filings',
         sources: SOURCE_IDS,
         holdings: loadHoldings(env).length,
-        endpoints: ['GET /status', 'GET /holdings', 'GET /index/:source/:ticker', 'GET /failed/:source', 'POST /backfill', 'POST /sync?ticker=&mode=', 'POST /retry/:source', 'POST /forget/:source/:ticker?id=', 'POST /probe {url,headers}', 'POST /kick'],
+        endpoints: ['GET /status', 'GET /holdings', 'GET /index/:source/:ticker', 'GET /failed/:source', 'POST /backfill', 'POST /sync?ticker=&source=&mode=', 'POST /retry/:source', 'POST /forget/:source/:ticker?id=', 'POST /probe {url,headers}', 'POST /kick'],
       });
     }
     if (method === 'GET' && parts[0] === 'status') {
@@ -84,9 +84,11 @@ export default {
     if (parts[0] === 'backfill') return json(await queueAll(env, 'full'));
     if (parts[0] === 'sync') {
       const ticker = url.searchParams.get('ticker') || undefined;
+      const source = url.searchParams.get('source') || undefined;
       const mode = (url.searchParams.get('mode') || 'recent') as ListMode;
       if (mode !== 'full' && mode !== 'recent') return json({ error: 'mode must be full or recent' }, 400);
-      return json(await queueAll(env, mode, ticker));
+      if (source && !isSource(source)) return json({ error: `unknown source ${source}` }, 400);
+      return json(await queueAll(env, mode, ticker, source));
     }
     if (parts[0] === 'retry' && parts.length === 2 && isSource(parts[1])) {
       return json({ requeued: await crawler(env, parts[1]).retryFailed() });
@@ -97,11 +99,11 @@ export default {
     }
     if (parts[0] === 'probe') {
       // Diagnostic: fetch a URL from the Worker's egress with optional headers (JSON body: {url, headers}).
-      const body = (await req.json().catch(() => ({}))) as { url?: string; headers?: Record<string, string> };
+      const body = (await req.json().catch(() => ({}))) as { url?: string; headers?: Record<string, string>; maxChars?: number };
       if (!body.url) return json({ error: 'url required' }, 400);
       const r = await fetch(body.url, { headers: body.headers ?? {}, redirect: 'manual' });
       const text = await r.text();
-      return json({ status: r.status, headers: Object.fromEntries(r.headers), bodyStart: text.slice(0, 600), bytes: text.length });
+      return json({ status: r.status, headers: Object.fromEntries(r.headers), bodyStart: text.slice(0, Math.min(body.maxChars ?? 600, 2_000_000)), bytes: text.length });
     }
     if (parts[0] === 'kick') {
       for (const s of SOURCE_IDS) await crawler(env, s).kick();

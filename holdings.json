@@ -5,7 +5,8 @@
       "exchange": "XNAS",
       "name": "Microsoft Corp",
       "sources": [
-        "sec"
+        "sec",
+        "prices"
       ],
       "cik": "789019"
     },
@@ -14,7 +15,8 @@
       "exchange": "XNAS",
       "name": "Apple Inc.",
       "sources": [
-        "sec"
+        "sec",
+        "prices"
       ],
       "cik": "320193"
     },
@@ -23,7 +25,8 @@
       "exchange": "XNAS",
       "name": "Amazon.com Inc",
       "sources": [
-        "sec"
+        "sec",
+        "prices"
       ],
       "cik": "1018724"
     },
@@ -32,7 +35,8 @@
       "exchange": "XNAS",
       "name": "Workday, Inc.",
       "sources": [
-        "sec"
+        "sec",
+        "prices"
       ],
       "cik": "1327811"
     },
@@ -41,7 +45,8 @@
       "exchange": "XNAS",
       "name": "Meta Platforms, Inc.",
       "sources": [
-        "sec"
+        "sec",
+        "prices"
       ],
       "cik": "1326801"
     },
@@ -50,7 +55,8 @@
       "exchange": "XNYS",
       "name": "Toast, Inc.",
       "sources": [
-        "sec"
+        "sec",
+        "prices"
       ],
       "cik": "1650164"
     },
@@ -59,7 +65,8 @@
       "exchange": "XNYS",
       "name": "Salesforce, Inc.",
       "sources": [
-        "sec"
+        "sec",
+        "prices"
       ],
       "cik": "1108524"
     },
@@ -68,7 +75,8 @@
       "exchange": "XNAS",
       "name": "Adobe Inc.",
       "sources": [
-        "sec"
+        "sec",
+        "prices"
       ],
       "cik": "796343"
     },
@@ -77,7 +85,8 @@
       "exchange": "XNYS",
       "name": "Novo Nordisk A/S (ADR)",
       "sources": [
-        "sec"
+        "sec",
+        "prices"
       ],
       "cik": "353278"
     },
@@ -86,7 +95,8 @@
       "exchange": "XNYS",
       "name": "KKR Income Opportunities Fund",
       "sources": [
-        "sec"
+        "sec",
+        "prices"
       ],
       "cik": "1515940"
     },
@@ -95,7 +105,8 @@
       "exchange": "XNYS",
       "name": "Uber Technologies, Inc.",
       "sources": [
-        "sec"
+        "sec",
+        "prices"
       ],
       "cik": "1543151"
     },
@@ -104,7 +115,8 @@
       "exchange": "XNAS",
       "name": "Alphabet Inc.",
       "sources": [
-        "sec"
+        "sec",
+        "prices"
       ],
       "cik": "1652044"
     },
@@ -113,7 +125,8 @@
       "exchange": "XNAS",
       "name": "Intuit Inc.",
       "sources": [
-        "sec"
+        "sec",
+        "prices"
       ],
       "cik": "896878"
     },
@@ -121,56 +134,64 @@
       "ticker": "ARB",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "ATEC",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "AUI",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "CAR",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "CHL",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "COH",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "CRED",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "CVCHB",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ],
       "name": "CVC Limited capital notes (issuer code CVC)",
       "asxArchiveCode": "CVC"
@@ -179,35 +200,40 @@
       "ticker": "DN1",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "DRGN",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "FANG",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "GQG",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "GSBE47",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ],
       "name": "Australian Government Treasury Bond 2047 (issuer code GSB)",
       "asxArchiveCode": "GSB"
@@ -216,77 +242,88 @@
       "ticker": "HBRD",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "HDN",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "HSN",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "ICME",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "IRE",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "IRI",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "JAN",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "KKC",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "KLS",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "LEND",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "LFSPB",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ],
       "name": "Latitude Group Holdings capital notes (issuer code LFS)",
       "asxArchiveCode": "LFS"
@@ -295,7 +332,8 @@
       "ticker": "MA2HA",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ],
       "name": "MA Credit Portfolio Holdings notes (issuer code MA2)",
       "asxArchiveCode": "MA2"
@@ -304,7 +342,8 @@
       "ticker": "NFNG",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ],
       "name": "Nufarm Finance (NZ) notes (parent code NUF)",
       "asxArchiveCode": "NUF"
@@ -313,56 +352,64 @@
       "ticker": "SDR",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "SEK",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "SUL",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "VAS",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "VTS",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "VVLU",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "WTC",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "XRO",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
@@ -370,7 +417,8 @@
       "exchange": "XASX",
       "sources": [
         "asx",
-        "sec"
+        "sec",
+        "prices"
       ],
       "name": "Block, Inc. (CDI)",
       "cik": "1512673"
@@ -379,7 +427,8 @@
       "ticker": "YAL",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
@@ -387,7 +436,8 @@
       "exchange": "XASX",
       "sources": [
         "asx",
-        "sec"
+        "sec",
+        "prices"
       ],
       "name": "BHP Group Ltd",
       "cik": "811809"
@@ -396,14 +446,16 @@
       "ticker": "FMG",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "MXT",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
@@ -411,7 +463,8 @@
       "exchange": "XASX",
       "sources": [
         "asx",
-        "sec"
+        "sec",
+        "prices"
       ],
       "name": "Rio Tinto Ltd",
       "cik": "863064"
@@ -420,14 +473,16 @@
       "ticker": "STW",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
       "ticker": "VHY",
       "exchange": "XASX",
       "sources": [
-        "asx"
+        "asx",
+        "prices"
       ]
     },
     {
@@ -435,7 +490,8 @@
       "exchange": "XLON",
       "name": "Rightmove plc",
       "sources": [
-        "rns"
+        "rns",
+        "prices"
       ],
       "brighterir": "rightmove_plc"
     },
@@ -444,7 +500,8 @@
       "exchange": "XAMS",
       "name": "Adyen N.V.",
       "sources": [
-        "adyen"
+        "adyen",
+        "prices"
       ]
     }
   ]

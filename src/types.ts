@@ -8,7 +8,7 @@
  * rate limits and so that tests can stub the network.
  */
 
-export type SourceId = 'sec' | 'asx' | 'rns' | 'adyen';
+export type SourceId = 'sec' | 'asx' | 'rns' | 'adyen' | 'prices';
 
 export interface Holding {
   /** Ticker as shown by the broker, e.g. "MSFT", "BHP", "GSBE47". Used in R2 keys. */
@@ -25,6 +25,8 @@ export interface Holding {
   asxArchiveCode?: string;
   /** BrighterIR client slug, e.g. "rightmove_plc". Required for source "rns". */
   brighterir?: string;
+  /** Yahoo Finance symbol override for source "prices" (default: ticker + exchange suffix, e.g. BHP.AX, RMV.L, ADYEN.AS). */
+  yahoo?: string;
 }
 
 export interface HoldingsConfig {
