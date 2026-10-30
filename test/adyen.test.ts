@@ -197,7 +197,9 @@ describe('download', () => {
     expect(obj.key).toMatch(/^adyen\/ADYEN\/\d{4}\/[a-z0-9-]+_asset-\d+\.pdf$/);
     expect(obj.key).toBe('adyen/ADYEN/2026/shareholder-letter-and-interim-financial-statements-h1-2026_asset-146118.pdf');
     expect(obj.contentType).toBe('application/pdf');
-    expect(obj.body).toBeInstanceOf(ArrayBuffer);
+    expect(obj.body).toBeInstanceOf(ReadableStream);
+    const streamed = await new Response(obj.body as ReadableStream).arrayBuffer();
+    expect(streamed.byteLength).toBeGreaterThan(0);
     expect(obj.meta).toMatchObject({ id: 'asset-146118', contentType: 'application/pdf' });
   });
 

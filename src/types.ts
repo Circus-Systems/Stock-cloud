@@ -75,7 +75,8 @@ export interface ListPage {
 export interface StoredObject {
   /** Full R2 key, e.g. "sec/AAPL/2024/2024-11-01_0000320193-24-000123_10-K_aapl-20240928.htm" */
   key: string;
-  body: ArrayBuffer | string;
+  /** A ReadableStream is written to R2 with a streamed multipart upload (no buffering in memory). */
+  body: ArrayBuffer | string | ReadableStream<Uint8Array>;
   contentType: string;
   /** Extra metadata merged into the sidecar JSON next to the object. */
   meta?: Record<string, unknown>;

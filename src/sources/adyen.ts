@@ -535,10 +535,8 @@ export const adyenSource: Source = {
     if (Number.isFinite(declared) && declared > MAX_DOWNLOAD_BYTES) {
       throw new Error(`adyen: ${ref.url} is ${declared} bytes, over the 100 MB limit`);
     }
-    const body = await res.arrayBuffer();
-    if (body.byteLength > MAX_DOWNLOAD_BYTES) {
-      throw new Error(`adyen: ${ref.url} is ${body.byteLength} bytes, over the 100 MB limit`);
-    }
+    // Stream the body: some documents (videos, iXBRL packs) are far larger than Worker memory.
+    const body: ArrayBuffer | ReadableStream<Uint8Array> = res.body ?? (await res.arrayBuffer());
 
     const contentType = res.headers.get('content-type') ?? 'application/octet-stream';
     const contentDisposition = res.headers.get('content-disposition');

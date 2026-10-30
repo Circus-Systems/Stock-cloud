@@ -301,9 +301,7 @@ export class Crawler extends DurableObject<Env> {
     if (!objects.length) throw new Error(`download of ${ref.ticker}/${ref.id} produced no objects`);
     const keys: string[] = [];
     for (const obj of objects) {
-      const size = typeof obj.body === 'string' ? obj.body.length : obj.body.byteLength;
-      if (size > MAX_OBJECT_BYTES) throw new Error(`${obj.key} is ${size} bytes, over the limit`);
-      await this.env.FILINGS.put(obj.key, obj.body, {
+      const options: R2PutOptions = {
         httpMetadata: { contentType: obj.contentType },
         customMetadata: {
           source: ref.source,
@@ -313,7 +311,15 @@ export class Crawler extends DurableObject<Env> {
           form: (ref.form ?? '').slice(0, 100),
           title: ref.title.slice(0, 400),
         },
-      });
+      };
+      let size: number;
+      if (obj.body instanceof ReadableStream) {
+        size = await this.putStream(obj.key, obj.body, options);
+      } else {
+        size = typeof obj.body === 'string' ? new TextEncoder().encode(obj.body).byteLength : obj.body.byteLength;
+        if (size > MAX_OBJECT_BYTES) throw new Error(`${obj.key} is ${size} bytes, over the limit`);
+        await this.env.FILINGS.put(obj.key, obj.body, options);
+      }
       const meta = { ...ref, ...obj.meta, key: obj.key, contentType: obj.contentType, bytes: size, archivedAt: new Date().toISOString() };
       await this.env.FILINGS.put(`${obj.key}.meta.json`, JSON.stringify(meta, null, 2), { httpMetadata: { contentType: 'application/json' } });
       keys.push(obj.key);
@@ -329,6 +335,60 @@ export class Crawler extends DurableObject<Env> {
       JSON.stringify(keys),
       Date.now(),
     );
+  }
+
+  /**
+   * Write a stream to R2 as a multipart upload in fixed-size parts, so that objects
+   * larger than the Worker's memory never have to be buffered whole. Returns the byte count.
+   */
+  private async putStream(key: string, stream: ReadableStream<Uint8Array>, options: R2PutOptions): Promise<number> {
+    const PART = 8 * 1024 * 1024;
+    const upload = await this.env.FILINGS.createMultipartUpload(key, options);
+    const parts: R2UploadedPart[] = [];
+    const chunks: Uint8Array[] = [];
+    let buffered = 0;
+    let total = 0;
+    const flush = async () => {
+      const part = new Uint8Array(buffered);
+      let off = 0;
+      for (const c of chunks) {
+        part.set(c, off);
+        off += c.byteLength;
+      }
+      parts.push(await upload.uploadPart(parts.length + 1, part));
+      chunks.length = 0;
+      buffered = 0;
+    };
+    const reader = stream.getReader();
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > MAX_OBJECT_BYTES) throw new Error(`${key} exceeds ${MAX_OBJECT_BYTES} bytes`);
+        // Keep every non-final part exactly PART bytes (R2 requires equal-sized parts except the last).
+        let v = value;
+        while (buffered + v.byteLength >= PART) {
+          const take = PART - buffered;
+          chunks.push(v.subarray(0, take));
+          buffered += take;
+          await flush();
+          v = v.subarray(take);
+        }
+        if (v.byteLength) {
+          chunks.push(v);
+          buffered += v.byteLength;
+        }
+      }
+      if (buffered > 0 || parts.length === 0) await flush();
+      await upload.complete(parts);
+    } catch (e) {
+      await upload.abort().catch(() => {});
+      throw e;
+    } finally {
+      reader.releaseLock();
+    }
+    return total;
   }
 
   private async exportIndex(ticker: string): Promise<void> {
