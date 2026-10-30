@@ -103,7 +103,7 @@ export default {
         bucket: 'stock-filings',
         sources: SOURCE_IDS,
         holdings: { portfolio: loadHoldings(env).length, total: all.length },
-        endpoints: ['GET /status', 'GET /holdings', 'GET /universe', 'GET /index/:source/:ticker', 'GET /failed/:source', 'POST /universe/refresh', 'POST /backfill', 'POST /sync?ticker=&source=&mode=full|recent|auto', 'POST /retry/:source', 'POST /forget/:source/:ticker?id=', 'POST /probe {url,headers,maxChars}', 'POST /kick'],
+        endpoints: ['GET /status', 'GET /holdings', 'GET /universe', 'GET /index/:source/:ticker', 'GET /failed/:source', 'POST /universe/refresh', 'POST /backfill', 'POST /sync?ticker=&source=&shard=&mode=full|recent|auto', 'POST /retry/:source', 'POST /forget/:source/:ticker?id=', 'POST /probe {url,headers,maxChars}', 'POST /kick'],
       });
     }
     if (method === 'GET' && parts[0] === 'status') {
@@ -147,7 +147,8 @@ export default {
       const mode = (url.searchParams.get('mode') || 'auto') as SyncMode;
       if (mode !== 'full' && mode !== 'recent' && mode !== 'auto') return json({ error: 'mode must be full, recent or auto' }, 400);
       if (source && !isSource(source)) return json({ error: `unknown source ${source}` }, 400);
-      return json(await queueAll(env, mode, await loadAllHoldings(env), ticker, source));
+      const shard = url.searchParams.get('shard') || undefined; // a Durable Object name such as "asx#3"
+      return json(await queueAll(env, mode, await loadAllHoldings(env), ticker, source, shard));
     }
     if (parts[0] === 'retry' && parts.length === 2 && isSource(parts[1])) {
       const ns = await Promise.all(allShardNames(parts[1]).map((n) => crawler(env, n).retryFailed()));

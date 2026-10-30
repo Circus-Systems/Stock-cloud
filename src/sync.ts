@@ -86,7 +86,7 @@ export interface QueueResult {
 }
 
 /** Queue a sync for every (holding, source) pair, grouped into one RPC per Durable Object. */
-export async function queueAll(env: SyncEnv, mode: SyncMode, holdings: Holding[], only?: string, onlySource?: string): Promise<QueueResult> {
+export async function queueAll(env: SyncEnv, mode: SyncMode, holdings: Holding[], only?: string, onlySource?: string, onlyShard?: string): Promise<QueueResult> {
   const selected = holdings.filter((h) => !only || h.ticker.toUpperCase() === only.toUpperCase());
   const groups = new Map<string, Holding[]>();
   for (const h of selected) {
@@ -94,6 +94,7 @@ export async function queueAll(env: SyncEnv, mode: SyncMode, holdings: Holding[]
       if (onlySource && s !== onlySource) continue;
       if (!SOURCE_IDS.includes(s)) continue;
       const name = crawlerNameFor(s, h);
+      if (onlyShard && name !== onlyShard) continue;
       const g = groups.get(name) ?? [];
       g.push(h);
       groups.set(name, g);

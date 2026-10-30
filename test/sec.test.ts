@@ -79,6 +79,14 @@ describe('sec source', () => {
     expect(objs[1].key).toBe('sec/AAPL/2026/2026-10-29_0001140361-26-041201_4_full-submission.txt');
   });
 
+  it('falls back to the complete submission text when the primary document is gone', async () => {
+    const refs = columnsToRefs(fixture.filings.recent, aapl);
+    const ctx = ctxWith((url) => (url.endsWith('.txt') ? new Response('full', { headers: { 'content-type': 'text/plain' } }) : new Response('gone', { status: 404 })));
+    const objs = await secSource.download(refs[0], ctx);
+    expect(objs).toHaveLength(1);
+    expect(objs[0].key).toBe('sec/AAPL/2026/2026-10-29_0001140361-26-041201_4_0001140361-26-041201.txt');
+  });
+
   it('throws on non-200 so the job is retried', async () => {
     const refs = columnsToRefs(fixture.filings.recent, aapl);
     const ctx = ctxWith(() => new Response('blocked', { status: 403 }));

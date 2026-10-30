@@ -128,11 +128,18 @@ export const secSource: Source = {
   },
 
   async download(ref: FilingRef, ctx: SourceContext): Promise<StoredObject[]> {
-    const res = await ctx.fetch(ref.url, { headers: secHeaders(ctx), redirect: 'follow' });
+    let res = await ctx.fetch(ref.url, { headers: secHeaders(ctx), redirect: 'follow' });
+    let primary = (ref.extra?.primaryDocument as string | undefined) || '';
+    const full = ref.extra?.fullSubmission as string | undefined;
+    // Some early-2000s filings list a primary document that no longer exists; the complete submission text always does.
+    if (res.status === 404 && primary && full) {
+      console.warn(`SEC ${ref.url} -> 404, falling back to the complete submission file`);
+      res = await ctx.fetch(full, { headers: secHeaders(ctx), redirect: 'follow' });
+      primary = '';
+    }
     if (res.status !== 200) throw new Error(`SEC ${ref.url} -> HTTP ${res.status}`);
     const body = await res.arrayBuffer();
     const contentType = res.headers.get('content-type') || 'application/octet-stream';
-    const primary = (ref.extra?.primaryDocument as string | undefined) || '';
     const base = primary ? primary.split('/').pop()! : `${ref.id}.txt`;
     const dot = base.lastIndexOf('.');
     const stem = dot > 0 ? base.slice(0, dot) : base;
@@ -142,7 +149,6 @@ export const secSource: Source = {
     const form = slugify(ref.form || 'filing', 20).toUpperCase();
     const key = `sec/${ref.ticker}/${yearOf(ref.date)}/${ref.date}_${ref.id}_${form}_${slugify(stem, 60)}.${ext}`;
     const out: StoredObject[] = [{ key, body, contentType, meta: { ...ref, finalUrl: res.url } }];
-    const full = ref.extra?.fullSubmission as string | undefined;
     if (ctx.secFullSubmission && primary && full) {
       const r2 = await ctx.fetch(full, { headers: secHeaders(ctx) });
       if (r2.status === 200) {
